@@ -17,9 +17,13 @@
 
 package com.twitter.graphjet.algorithms.socialproof;
 
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.twitter.graphjet.algorithms.RecommendationAlgorithm;
 import com.twitter.graphjet.algorithms.RecommendationInfo;
@@ -47,6 +51,7 @@ public class TweetSocialProof implements
 
   private static final int MAX_EDGES_PER_NODE = 500;
   private static final Byte2ObjectMap<LongSet> EMPTY_SOCIALPROOF_MAP = new Byte2ObjectArrayMap<>();
+  protected static final Logger LOG = LoggerFactory.getLogger("graph");
 
   private NodeMetadataLeftIndexedMultiSegmentBipartiteGraph leftIndexedBipartiteGraph;
   private final Long2ObjectMap<Byte2ObjectMap<LongSet>> tweetsInteractions;
@@ -72,6 +77,13 @@ public class TweetSocialProof implements
     LongSet inputTweets = request.getInputTweets();
     ByteSet socialProofTypes = new ByteArraySet(request.getSocialProofTypes());
 
+    boolean debugFlag = (request.getQueryNode() == 138279118);
+
+    if (debugFlag) {
+      LOG.info("input tweets " + Arrays.toString(inputTweets.toLongArray())
+        + " social proof " + socialProofTypes);
+    }
+
     // Iterate through the set of seed users with weights.
     // For each seed user, we go through his engaged tweets.
     for (Long2DoubleMap.Entry entry
@@ -88,6 +100,15 @@ public class TweetSocialProof implements
         while (edgeIterator.hasNext() && numEdgePerNode++ < MAX_EDGES_PER_NODE) {
           long rightNode = edgeIterator.nextLong();
           byte edgeType = edgeIterator.currentEdgeType();
+
+          if (debugFlag) {
+            LOG.info("right Node "
+              + rightNode
+              + " edgeType "
+              + edgeType
+            );
+          }
+
           // If the set of inputTweets contains the current tweet,
           // we find and store its social proof.
           if (inputTweets.contains(rightNode) && socialProofTypes.contains(edgeType)) {
@@ -112,19 +133,36 @@ public class TweetSocialProof implements
             }
             LongSet connectingUsers = interactionMap.get(edgeType);
 
+            if (debugFlag) {
+              LOG.info("edge Type " + edgeType + " leftNode " + leftNode);
+            }
+
             // Add the connecting user to the user set.
             if (!connectingUsers.contains(leftNode)) {
+
+              if (debugFlag) {
+                LOG.info("Added edge Type " + edgeType + " leftNode " + leftNode);
+              }
               connectingUsers.add(leftNode);
             }
           }
         }
       }
     }
+
+    if (debugFlag) {
+      LOG.info("tweetsInteractions "
+        + Arrays.toString(tweetsInteractions.keySet().toArray())
+        + " tweetsSocialProofWeights "
+        + Arrays.toString(tweetsSocialProofWeights.keySet().toArray()));
+    }
   }
 
   @Override
   public SocialProofResponse computeRecommendations(SocialProofRequest request, Random rand) {
     collectRecommendations(request);
+
+
 
     List<RecommendationInfo> socialProofList = new LinkedList<>();
     for (Long tweetId : request.getInputTweets()) {
